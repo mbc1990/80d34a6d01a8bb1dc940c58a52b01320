@@ -1,6 +1,7 @@
 import argparse
 import re
-
+import tldextract
+from urlparse import urlparse 
 from twisted.internet import reactor, task
 from bs4 import BeautifulSoup
 from twisted.web.client import getPage
@@ -13,6 +14,9 @@ emails_extracted = set()
 
 # Domain we're scraping, prevents the crawler from escaping
 valid_domain = None
+
+# Just the domain for comparison
+domain_only = None
 
 # Outstanding callbacks
 deferred_count = 0
@@ -30,16 +34,17 @@ active_scrapers = []
 def main():
     global deferred_count
     global valid_domain
+    global domain_only
     global to_scrape_queue
 
     parser = argparse.ArgumentParser()
     parser.add_argument('domain')
     args = parser.parse_args()
-            
+
     to_scrape_queue.append(args.domain)
-    
-    # TODO: Parse the actual domain out of this in case a page elsewhere is linked
+
     valid_domain = args.domain 
+    domain_only = tldextract.extract(args.domain).domain 
     
     ctc = task.LoopingCall(check_termination_condition)
     ctc.start(1)
@@ -91,6 +96,7 @@ def extract_and_crawl(res, url='URL PARAM DISABLED'):
     global deferred_count
     global already_visited
     global valid_domain
+    global domain_only
     global emails_extracted
     global to_scrape_queue
     global active_scrapers
@@ -107,7 +113,11 @@ def extract_and_crawl(res, url='URL PARAM DISABLED'):
     relative_links = [valid_domain+u for u in urls if 'http' not in u[:4]]
     absolute_links = [u for u in urls if 'http' in u[:4]]
     to_scrape = relative_links+absolute_links
-    to_scrape = [u for u in to_scrape if u not in already_visited and valid_domain in u] 
+        
+    # Remove URLs with subdomains, check domain, check already visited 
+    to_scrape = [u for u in to_scrape if tldextract.extract(u).domain == domain_only and (tldextract.extract(u).subdomain == ''\
+                                                                                          or tldextract.extract(u).subdomain == 'www')]
+    to_scrape = [u for u in to_scrape if u not in already_visited] 
     
     for link in to_scrape:
         already_visited.add(link)
