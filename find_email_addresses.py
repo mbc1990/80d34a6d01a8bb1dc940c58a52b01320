@@ -18,6 +18,9 @@ base_url = None
 # Domain name that needs to match the links to prevent the crawler from escaping 
 domain_name = None
 
+# Subdomain (if there is one) that the crawler is allowed to traverse
+subdomain_name = None
+
 # Number of requests Twisted is currently waiting on 
 deferred_count = 0
     
@@ -33,6 +36,7 @@ def main():
     global deferred_count
     global base_url
     global domain_name
+    global subdomain_name
     global to_scrape_queue
 
     parser = argparse.ArgumentParser()
@@ -48,7 +52,8 @@ def main():
 
     base_url = args.domain 
     domain_name = tldextract.extract(args.domain).domain 
-    
+    subdomain_name = tldextract.extract(args.domain).subdomain
+
     ctc = task.LoopingCall(check_termination_condition)
     ctc.start(1)
 
@@ -93,6 +98,7 @@ def extract_and_crawl(res):
     global already_visited
     global base_url
     global domain_name
+    global subdomain_name
     global emails_extracted
     global to_scrape_queue
 
@@ -119,10 +125,10 @@ def extract_and_crawl(res):
     relative_links = [base_url+u for u in urls if 'http' not in u[:4]]
     absolute_links = [u for u in urls if 'http' in u[:4]]
     to_scrape = relative_links+absolute_links
-        
-    # Remove URLs with subdomains, check domain, check already visited 
-    to_scrape = [u for u in to_scrape if tldextract.extract(u).domain == domain_name and (tldextract.extract(u).subdomain == ''\
-                                                                                          or tldextract.extract(u).subdomain == 'www')]
+
+    # Remove URLs with the wrong subdomain check domain, check already visited 
+    to_scrape = [u for u in to_scrape if tldextract.extract(u).domain == domain_name and \
+                 (tldextract.extract(u).subdomain == subdomain_name or tldextract.extract(u).subdomain == 'www')]
     to_scrape = [u for u in to_scrape if u not in already_visited] 
     
     # Dedeuplicate and add to the queue
