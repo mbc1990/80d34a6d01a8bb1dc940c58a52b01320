@@ -71,7 +71,6 @@ def manage_crawlers():
     
     while len(to_scrape_queue) and deferred_count < concurrent_connection_limit:
         next_page = to_scrape_queue.pop()
-
         d = getPage(next_page, timeout=5)
         d.addCallback(extract_and_crawl)
         d.addErrback(failure)
@@ -93,19 +92,23 @@ def extract_and_crawl(res):
     global to_scrape_queue
 
     # Extract emails
-    # This regex is a simplified version of a more complex one I found online
-    # TODO: Could parse mailto: if we're optimistic about sites conforming to that 
-    # TODO: Think more about this regex
-    emails = re.findall(r"[A-Za-z0-9.]+@[A-Za-z0-9-]+\.[A-Za-z]{2,10}", res)
+    # First pass - simple regular expression
+    emails = re.findall(r'[A-Za-z0-9.]+@[A-Za-z0-9-]+\.[A-Za-z]+', res)
     for email in emails:
         emails_extracted.add(email)
 
-    # lxml is supposedly much faster than the parser that comes with bs4, so let's use it
+    # lxml is supposedly much faster than the parser that comes with bs4, so let's use it instead
     soup = BeautifulSoup(res, 'lxml') 
         
     # Extract links
     anchors = soup.find_all('a', href=True)
     urls = [tag['href'] for tag in anchors]
+
+    # Extract emails 
+    # Second pass - parse anchors with mailto: in them  
+    emails =[tag['href'].replace('mailto:','') for tag in anchors if 'mailto:' in tag['href']]
+    for email in emails:
+        emails_extracted.add(email)
 
     # Handle relative links 
     relative_links = [base_url+u for u in urls if 'http' not in u[:4]]
