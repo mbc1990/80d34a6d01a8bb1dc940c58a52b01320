@@ -3,8 +3,8 @@ import re
 import tldextract
 from urlparse import urlparse 
 from twisted.internet import reactor, task
-from bs4 import BeautifulSoup
 from twisted.web.client import getPage
+from bs4 import BeautifulSoup
 
 # URLs already visited  
 already_visited = set()
@@ -22,7 +22,9 @@ domain_name = None
 deferred_count = 0
     
 # Max number of active connections 
-active_connection_limit = 10 
+# Set this through trial and error - some sites will throttle you 
+# Your OS may also get upset about too much IO, so if you get weird errors try lowering this down first
+concurrent_connection_limit = 10 
 
 # Queue for urls when the active connection limit is reached
 to_scrape_queue = []
@@ -55,7 +57,7 @@ def check_termination_condition():
     global deferred_count 
     global emails_extracted
 
-    # When there are no more URLs waiting to be scraped, and no more deferreds waiting to be executed, the program is done
+    # When there are no more URLs waiting to be scraped, and no more deferreds awaiting callbck, the program is done
     if len(to_scrape_queue) == 0 and deferred_count == 0:
         reactor.stop()
         for email in emails_extracted:
@@ -63,15 +65,15 @@ def check_termination_condition():
 
 # Keeps the number of active connections managed
 def manage_crawlers():
-    global active_connection_limit
+    global concurrent_connection_limit
     global to_scrape_queue
     global deferred_count
     
-    while len(to_scrape_queue) and deferred_count < active_connection_limit:
+    while len(to_scrape_queue) and deferred_count < concurrent_connection_limit:
         next_page = to_scrape_queue.pop()
 
         d = getPage(next_page, timeout=5)
-        d.addCallback(extract_and_crawl, url=next_page)
+        d.addCallback(extract_and_crawl)
         d.addErrback(failure)
 
         deferred_count += 1
@@ -82,7 +84,7 @@ def failure(res):
 
 # Callback for select loop
 # Pulls out email addresses and URLs on the same domain 
-def extract_and_crawl(res, url='URL PARAM DISABLED'):
+def extract_and_crawl(res):
     global deferred_count
     global already_visited
     global base_url
@@ -92,9 +94,8 @@ def extract_and_crawl(res, url='URL PARAM DISABLED'):
 
     # Extract emails
     # This regex is a simplified version of a more complex one I found online
-    # I think recognizing email addresses with regular expressions may be a fool's errand 
-    # So I have left the implementation of one conforming with all the relevant RFCs (and unicode characters!) as an exercize to the reader
     # TODO: Could parse mailto: if we're optimistic about sites conforming to that 
+    # TODO: Think more about this regex
     emails = re.findall(r"[A-Za-z0-9.]+@[A-Za-z0-9-]+\.[A-Za-z]{2,10}", res)
     for email in emails:
         emails_extracted.add(email)
