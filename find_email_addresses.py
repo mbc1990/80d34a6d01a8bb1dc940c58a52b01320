@@ -23,7 +23,7 @@ deferred_count = 0
     
 # Max number of active connections 
 # Set this through trial and error - some sites will throttle you 
-# Your OS may also get upset about too much IO, so if you get weird errors try lowering this down first
+# Your OS may also get upset about too much IO, so if you get weird errors try lowering this first
 concurrent_connection_limit = 10 
 
 # Queue for urls when the active connection limit is reached
@@ -38,8 +38,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('domain')
     args = parser.parse_args()
+    
+    # Just so this works with the jana.com example... 
+    dom = args.domain
+    if len(dom) < 7 or 'http' not in dom[:4]:
+        dom = 'http://'+dom
 
-    to_scrape_queue.append(args.domain)
+    to_scrape_queue.append(dom)
 
     base_url = args.domain 
     domain_name = tldextract.extract(args.domain).domain 
@@ -104,7 +109,7 @@ def extract_and_crawl(res):
     anchors = soup.find_all('a', href=True)
     urls = [tag['href'] for tag in anchors]
 
-    # Extract emails 
+    # Extract more emails 
     # Second pass - parse anchors with mailto: in them  
     emails =[tag['href'].replace('mailto:','') for tag in anchors if 'mailto:' in tag['href']]
     for email in emails:
